@@ -1,0 +1,5 @@
+# Optional semantic retrieval dependencies; lexical BM25 works without these.
+sentence-transformers>=3.0.0
+numpy>=1.26.0
+
+streamlit>=1.36.0
