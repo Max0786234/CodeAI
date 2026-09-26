@@ -1,3 +1,28 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# Environment / app state
 .env
+.env.*
+.streamlit/
+*.log
+
+# Local test artifacts and uploaded data
+*.zip
+*.tar.gz
+*.tgz
+output/
+artifacts/
+.tmp/
+_temp/
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,92 +1,176 @@
-# RepoLens — AI Codebase Assistant
+# RepoLens — Local AI Codebase Assistant
 
-RepoLens is a small, explainable repository Q&A agent. It investigates a codebase using controlled tools and retrieves relevant code before answering. The project intentionally stays compact enough to understand and discuss in a fresher software engineering interview.
+RepoLens is a lightweight Python project that helps you ask questions about a codebase using retrieval-first AI. Instead of sending the entire repository to a model blindly, it:
+
+- chunks source files into searchable snippets,
+- retrieves the most relevant code using BM25 and optional embedding search,
+- combines rankings with Reciprocal Rank Fusion (RRF),
+- sends only the relevant evidence to the model,
+- returns answers grounded in real file paths and line ranges.
+
+This keeps the project simple, explainable, and easy to run locally.
+
+## What this project is doing
+
+This project is a small repository assistant for software engineering tasks:
+
+- find the file that implements a feature,
+- answer questions about code structure,
+- inspect logic in a repo without reading everything manually,
+- work with uploaded ZIPs or local source folders,
+- answer with evidence, not vague guesses.
+
+The main idea is: retrieval quality matters more than raw model size for local code-analysis workflows.
+
+## Why we used Llama locally
+
+We used Llama through Ollama because it is a strong fit for this type of project:
+
+- local and private: no secret API key required for local use,
+- fast to prototype: easy to run on a dev machine,
+- low friction: works well for learning and testing retrieval ideas,
+- cheaper for development: no cloud billing while experimenting,
+- practical for codebase Q&A: the model is not the main bottleneck; good retrieval is.
+
+In other words, the real value here is the retrieval pipeline and evidence grounding, not just the LLM vendor. Local Llama is a good default for research, demos, and local validation.
+
+The app is configured to work with:
+
+- Ollama base URL: `http://localhost:11434/v1`
+- model: `llama3.2:latest`
+
+This means you can run the app locally without OpenAI credentials when using Ollama.
 
 ## Features
 
-- **Function/tool calling:** the LLM can request allowlisted tools for listing, reading, searching, and hybrid code retrieval.
-- **Structured reports:** `--report` emits a JSON report with findings, evidence, confidence, and a next step.
-- **BM25 keyword retrieval:** built-in lightweight implementation; no third-party package required.
-- **Semantic embeddings (optional):** sentence-transformers embeds code chunks and queries.
-- **RRF (optional semantic mode):** Reciprocal Rank Fusion combines BM25 and vector rankings without comparing their raw scores.
-- **Evidence-first workflow:** retrieved chunks include relative file paths and line ranges.
+- local code indexing from files or uploaded ZIPs,
+- BM25 keyword search,
+- optional semantic embeddings via `sentence-transformers`,
+- RRF fusion between lexical and semantic rankings,
+- evidence display with file paths and line ranges,
+- Streamlit web UI for chat-based repository Q&A,
+- agent-style tool usage in `agent.py` for CLI-based code exploration.
 
-## Quick start (no API key)
+## Project structure
 
-Python 3.10+ recommended. From this folder:
-
-```bash
-python agent.py "Where is the tool registry?" --demo --trace
-python -m unittest -v
+```text
+.
+├── README.md
+├── requirements.txt
+├── app.py
+├── agent.py
+├── retriever.py
+├── test_agent.py
+├── .gitignore
+└── .venv/                # local virtual environment, not committed
 ```
 
-Demo mode uses a deterministic fake model to demonstrate the agent loop. It does not demonstrate real LLM reasoning.
+Important note: the local ZIP used for testing is intentionally not committed to GitHub. It stays on your machine for validation and is ignored by Git.
 
-## Real LLM mode
+## Quick start
 
-Set an OpenAI-compatible API key and run:
+### 1) Create a virtual environment
+
+```bash
+python -m venv .venv
+```
+
+On Windows PowerShell:
 
 ```powershell
-$env:OPENAI_API_KEY = "your-key"
-python agent.py "Find where the agent loop is implemented"
+.\.venv\Scripts\Activate.ps1
 ```
 
-Optional environment variables: `OPENAI_BASE_URL` (defaults to `https://api.openai.com/v1`) and `OPENAI_MODEL` (defaults to `gpt-4o-mini`).
-
-## Retrieval
-
-Keyword hybrid retrieval is available through the `hybrid_code_search` tool and can be tested directly:
-
-```bash
-python -c "from retriever import hybrid_search; import json; print(json.dumps(hybrid_search('.', 'agent tool registry'), indent=2))"
-```
-
-Enable semantic embeddings and RRF by installing the optional requirements:
+### 2) Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Then ask the real agent to call `hybrid_code_search` with `semantic: true`, or call it directly:
+### 3) Start Ollama and pull the model
 
 ```bash
-python -c "from retriever import hybrid_search; import json; print(json.dumps(hybrid_search('.', 'where does the agent call tools?', semantic=True), indent=2))"
+ollama pull llama3.2:latest
 ```
 
-The first semantic run downloads `sentence-transformers/all-MiniLM-L6-v2`; model download and inference require internet access initially and sufficient RAM. Embeddings are computed at query time in this compact learning version; persistent vector indexing is intentionally out of scope.
+Then make sure Ollama is running locally.
 
-## Architecture
-
-1. `agent.py` defines the system prompt, tool schemas, controlled registry, model API call, agent loop, trace, and JSON report.
-2. `retriever.py` chunks source files, computes BM25 rankings, optionally computes embedding similarity, and fuses rankings with RRF.
-3. `test_agent.py` tests filesystem safety, tool contracts, agent traces, BM25 retrieval, and RRF behavior.
-
-## Interview talking points
-
-- BM25 handles exact identifiers and keywords; embeddings help find conceptually related code.
-- RRF combines ranked lists using `1 / (k + rank)` and avoids assuming BM25 and cosine similarity scores share a scale.
-- Chunk metadata preserves file path and line ranges for evidence and citations.
-- Current limitations: no persistent vector index, no reranker, no distributed services, and no production deployment. Semantic search is optional; lexical search works without extra dependencies.
-
-
-## Chatbot web interface
-
-RepoLens now includes a Streamlit chatbot. It lets you upload a project ZIP or individual code files, index them, and ask questions in a chat interface. Answers are grounded in retrieved chunks and show the evidence.
-
-### Run the chatbot
+### 4) Run the Streamlit app
 
 ```bash
-pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Open the local URL shown by Streamlit (usually `http://localhost:8501`).
+Open the local URL shown in the terminal, usually:
 
-1. Enter your OpenAI-compatible API key in the sidebar (or set `OPENAI_API_KEY` before launching).
-2. Optionally set `OPENAI_BASE_URL` and `OPENAI_MODEL` for a compatible provider.
-3. Upload a project ZIP or source files and click **Index uploaded files**.
-4. Ask questions in the chat box.
+```text
+http://localhost:8501
+```
 
-The app safely skips common dependency/build folders and non-source files from ZIP uploads. It has a 30 MB extracted text limit and a 1 MB per-file limit. Semantic mode is optional and uses the embedding dependencies in `requirements.txt`.
+### 5) Upload a project or ZIP and ask a question
 
-Uploaded files are processed locally in the running app's temporary directory. Do not upload secrets or files you do not have permission to share. The selected LLM provider receives the retrieved code excerpts included in each question.
+Examples:
+
+- “Where is the binary search implementation?”
+- “Show the two_sum function”
+- “Which file contains the Fibonacci logic?”
+- “Explain the login flow in this codebase”
+
+## CLI agent mode
+
+You can also run the non-UI tool-based agent:
+
+```bash
+python agent.py "Where is the tool registry?" --demo --trace
+```
+
+This is useful for testing the agent loop and report generation without the web interface.
+
+## Retrieval internals
+
+The core retrieval file is `retriever.py`.
+
+It does the following:
+
+1. splits code into chunks,
+2. indexes file paths and content,
+3. computes BM25 score for keyword matches,
+4. optionally computes embedding similarity,
+5. combines rankings with RRF.
+
+This means the model sees the most relevant code chunks instead of the full repository dump.
+
+## Testing
+
+Run the unit tests with:
+
+```bash
+python -m unittest -v test_agent.py
+```
+
+The tests cover:
+
+- tool contract safety,
+- file access restrictions,
+- BM25 retrieval,
+- RRF fusion,
+- README/code ranking behavior,
+- prompt trimming for model context limits.
+
+## GitHub hygiene
+
+The repository is intentionally kept clean for GitHub:
+
+- source files are committed,
+- local environment files are excluded,
+- temporary test ZIPs are excluded,
+- no large local artifacts are pushed to GitHub.
+
+This keeps the GitHub repo focused on the actual project and makes it easier for others to clone and run.
+
+## Notes
+
+- Semantic mode is optional and requires the dependencies in `requirements.txt`.
+- The app accepts uploaded ZIPs and local files, but it is designed for safe, local-only workflows.
+- Do not upload secrets or private data unless you are sure you have permission to do so.
+- The evaluation ZIP used in testing is kept on your local machine and intentionally not published to GitHub.
